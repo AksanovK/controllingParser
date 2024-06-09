@@ -34,15 +34,6 @@ def get_kafka_producer():
     return producer
 
 
-# Закомментируем функцию получения DLQ продюсера
-# def get_kafka_dlq_producer():
-#     dlq_producer = KafkaProducer(
-#         bootstrap_servers='localhost:9092',
-#         value_serializer=lambda m: json.dumps(m).encode('utf-8')
-#     )
-#     return dlq_producer
-
-
 def get_kafka_consumer(topic):
     consumer = KafkaConsumer(
         topic,
@@ -51,73 +42,6 @@ def get_kafka_consumer(topic):
         value_deserializer=lambda m: m.decode('utf-8')
     )
     return consumer
-
-
-# def find_files(url, file_type):
-#     file_links = []
-#     try:
-#         response = requests.get(url)
-#         response.raise_for_status()
-#         soup = BeautifulSoup(response.text, 'html.parser')
-#         links = soup.find_all('a', href=True)
-#         for link in links:
-#             href = link['href']
-#             if href.endswith(file_type):
-#                 full_url = requests.compat.urljoin(url, href)
-#                 file_links.append(full_url)
-#     except requests.RequestException as e:
-#         print(f"Error accessing {url}: {e}")
-#     return file_links
-
-
-# def extract_text_from_pdf(url):
-#     text = ""
-#     try:
-#         response = requests.get(url)
-#         response.raise_for_status()
-#         with BytesIO(response.content) as bytes_io:
-#             pdf = PyPDF2.PdfReader(bytes_io)
-#             for page in pdf.pages:
-#                 text += (page.extract_text() or "")
-#     except Exception as e:
-#         print(f"Error processing PDF {url}: {e}")
-#     return text
-#
-#
-# def extract_text_from_docx(url):
-#     text = ""
-#     try:
-#         response = requests.get(url)
-#         response.raise_for_status()
-#         document = Document(BytesIO(response.content))
-#         for paragraph in document.paragraphs:
-#             text += paragraph.text + "\n"
-#     except Exception as e:
-#         print(f"Error processing DOCX {url}: {e}")
-#     return text
-#
-#
-# def extract_text_from_excel(url):
-#     text = ""
-#     try:
-#         response = requests.get(url)
-#         response.raise_for_status()
-#         df = pd.read_excel(BytesIO(response.content))
-#         text = df.to_string(index=False)
-#     except Exception as e:
-#         print(f"Error processing Excel {url}: {e}")
-#     return text
-#
-#
-# def extract_text_from_txt(url):
-#     try:
-#         response = requests.get(url)
-#         response.raise_for_status()
-#         text = response.text
-#     except Exception as e:
-#         print(f"Error processing Text file {url}: {e}")
-#         text = ""
-#     return text
 
 
 def extract_info(text, event_type=None, subject=None, theme=None):
@@ -276,16 +200,6 @@ def gather_vseros_files(subject):
         return []
 
 
-# def process_sites(event_type, file_type, extractor_function, urls, subject=None):
-#     results = []
-#     for url in urls:
-#         file_links = find_files(url, file_type)
-#         for file_link in file_links:
-#             text = extractor_function(file_link)
-#             results.extend(extract_info(text, event_type=event_type, subject=subject))
-#     return results
-
-
 def gather_urls(directory):
     urls = []
     for root, dirs, files in os.walk(directory):
@@ -331,25 +245,9 @@ def process_data(event_type, subject, producer):
         'scientific': 'sources/conferences'
     }
 
-    # file_mappings = {
-    #     '.pdf': extract_text_from_pdf,
-    #     '.docx': extract_text_from_docx,
-    #     '.xlsx': extract_text_from_excel,
-    #     '.txt': extract_text_from_txt
-    # }
-
     all_results = []
     max_users = 16
 
-    # if event_type == 'olympics' and subject:
-    #     directory = directories['olympics'][subject]
-    #     urls = gather_urls(directory)
-    #     for file_type, extractor_function in file_mappings.items():
-    #         results = process_sites(event_type, file_type, extractor_function, urls, subject)
-    #         all_results.extend(results)
-    #         if len(all_results) >= max_users:
-    #             all_results = all_results[:max_users]
-    #             break
     if len(all_results) < max_users:
         vseros_files = gather_vseros_files(subject)
         log_memory_usage()
@@ -360,15 +258,6 @@ def process_data(event_type, subject, producer):
             if len(all_results) >= max_users:
                 all_results = all_results[:max_users]
                 break
-    # elif event_type == 'scientific':
-    #     directory = directories['scientific']
-    #     urls = gather_urls(directory)
-    #     for file_type, extractor_function in file_mappings.items():
-    #         results = process_sites(event_type, file_type, extractor_function, urls)
-    #         all_results.extend(results)
-    #         if len(all_results) >= max_users:
-    #             all_results = all_results[:max_users]
-    #             break
     log_memory_usage()
     unique_filename = write_results_to_file(all_results)
     producer.send('parsing_results_topic', {
@@ -381,8 +270,6 @@ def process_data(event_type, subject, producer):
 def main():
     consumer = get_kafka_consumer('start_parsing_topic')
     producer = get_kafka_producer()
-    # Закомментируем создание DLQ продюсера
-    # dlq_producer = get_kafka_dlq_producer()
     try:
         for message in consumer:
             print(f"Received message: {message}")
@@ -407,7 +294,6 @@ def main():
                 event_type = data.get('type')
                 subject = data.get('subject')
                 print(f"Received start command for event_type: {event_type} and subject: {subject}")
-                # Удалим dlq_producer из вызова process_data
                 process_data(event_type, subject, producer)
             else:
                 print(f"Error: Decoded message is not a dictionary: {data}")
